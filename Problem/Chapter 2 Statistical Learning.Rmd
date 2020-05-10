@@ -1,0 +1,355 @@
+---
+title: "Chapter 2 Statistical Learning"
+author: "Jishen Yin"
+date: "2020/4/28"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(ISLR)
+library(tidyverse)
+library(GGally)
+```
+
+## Problem 8
+
+This exercise relates it to the `College` data set, which can be found in `ISLR` package. It contains a number of variables for 777 different universities and colleges in the US. The variables are 
+
+`Private`: Public/private indicator
+
+`Apps`: Number of applications received
+
+`Accept`: Number of applicants accepted
+
+`Enroll`: Number of new students enrolled
+
+`Top10perc`: New students from top 10% of high school class
+
+`Top25perc`: New students from top 25% of high school class
+
+`F.Undergrad`: Number of full-time undergraduates
+
+`P.Undergrad`: Number of part-time undergraduates
+
+`Outstate`: Out-of-state tuition
+
+`Room.Board`: Room and board costs
+
+`Books`: Estimated book costs
+
+`Personal`: Estimated personal spending
+
+`PhD`: Percent of faculty with Ph.D.'s
+
+`Terminal`: Percent of faculty with terminal degree
+
+`S.F.Ratio`: Student/faculty ratio
+
+`perc.alumni`: Percent of alumni who donate
+
+`Expend`: Instructional expenditure per student
+
+`Grad.Rate`: Graduation rate
+
+\newpage
+
+(a) Read the data into `R`. Call the loaded data `college`.
+
+```{r}
+data(College)
+```
+
+(b) Look at the data using the `fix()` function. 
+
+(c)
+
+i. Use the `summary()` function to produce a numerical summary of the variables in the data set.
+
+```{r}
+summary(College)
+```
+
+\newpage
+
+ii. Use the `pairs` function to produce a scatterplot matrix of the first columns or variables of the data. Recall that you can reference the first ten columns of a matrix `A` using `A[,1:10]`.
+
+```{r, message=FALSE}
+ggpairs(College[,1:10], axisLabels = "none")
+```
+
+\newpage
+
+iii. Use the `plot()` function to produce side-by-side boxplots of `Outstate` versus `Private`.
+
+```{r}
+ggplot() +
+  geom_boxplot(aes(x = Private, y = Outstate), data = College) +
+  theme_light()
+```
+
+\newpage
+
+iv. Create a new qualitative variable, called `Elite`, by binning the `Top10perc` variable. We are going to divide universities into two groups based on whether or not the proportion of students coming from the top 10% of their high school classes exceeds 50%. Use th `summary()` function to see how many elite universities there are. Now use the `plot()` function to produce side-by-side boxplots of `Outstate` versus `Elite`.
+
+```{r}
+Elite = rep("No", nrow(College))
+Elite[College$Top10perc > 50] = "Yes"
+Elite = as.factor(Elite)
+College = data.frame(College, Elite)
+```
+
+```{r}
+summary(College$Elite)
+```
+
+```{r}
+ggplot() +
+  geom_boxplot(aes(x = Elite, y = Outstate), data = College) +
+  theme_light()
+```
+
+\newpage
+
+v. Use the `hist()` function to produce some histograms with differing numbers of bins for a few of the quantitative variables. You may find the command `par(mfrow=c(2, 2))` useful.
+
+```{r}
+College.gathered <- College %>%
+  select(-Private, -Elite) %>%
+  gather(key = "variable", value = "value")
+
+ggplot(data = College.gathered) +
+  geom_histogram(aes(x = value), bins = 50) +
+  facet_wrap(~variable, ncol = 4, scales = "free") +
+  theme_light()
+```
+
+\newpage
+
+## Problem 9
+
+This exercise involves the `Auto` data set studied in the lab. Make sure that the missing values have been removed from the data.
+
+```{r}
+data(Auto)
+```
+
+
+(a) Which of the predictors are quantitative, and which are qualitative?
+
+With `help(Auto)`, we get the description of the data set.
+
+`mpg`: miles per gallon
+
+`cylinders`: Number of cylinders between 4 and 8
+
+`displacement`: Engine displacement (cu. inches)
+
+`horsepower`: Engine horsepower
+
+`weight`: Vehicle weight (lbs.)
+
+`acceleration`: Time to accelerate from 0 to 60 mph (sec.)
+
+`year`: Model year (modulo 100)
+
+`origin`: Origin of car (1. American, 2. European, 3. Japanese)
+
+`name`:Vehicle name
+
+The quantitative variables are `mpg`, `displacement`, `horsepower`, `weight` and `acceleration`. The qualitative variables are `cylinders`, `year`, `origin` and `name`.
+
+```{r}
+Auto <- Auto %>% na.omit() %>%
+  mutate(cylinders = as.factor(cylinders),
+         year = as.factor(year),
+         origin = as.factor(origin)) %>%
+  select(-name)
+```
+
+
+(b) What is the range of each quantitative predictor?
+
+```{r}
+Auto.continuous <- Auto %>%
+  select(mpg, displacement, horsepower, weight, acceleration) %>%
+  gather(key = "variable", value = "value")
+
+Auto.continuous %>%
+  group_by(variable) %>%
+  summarise(range = max(value) - min(value))
+```
+
+\newpage
+
+(c) What is the mean and standard deviation of each quantitative predictor?
+
+```{r}
+Auto.continuous %>%
+  group_by(variable) %>%
+  summarise(mean = mean(value),
+            sd = sd(value))
+```
+
+(d) Now remove the 10th through 85th observations. What is the range, mean, and standard deviation of each predictor in the subset of the data that remains?
+
+```{r}
+Auto.subset <- Auto[c(1:9, 86:392),]
+Auto.subset %>%
+  select(mpg, displacement, horsepower, weight, acceleration) %>%
+  gather(key = "variable", value = "value") %>%
+  group_by(variable) %>%
+  summarise(range = max(value) - min(value),
+            mean = mean(value),
+            sd = sd(value))
+```
+
+\newpage
+
+(e) Using the full data set, investigate the predictors graphically, using scatterplots or other tools of your choice.
+
+```{r, warning=FALSE}
+Auto.gathered <- Auto %>%
+  gather(key = "variable", value = "value", -mpg)
+
+Auto.gathered.continuous <- Auto.gathered %>%
+  filter(variable %in% c("acceleration", "displacement", "horsepower", "weight"))
+
+Auto.gathered.discrete <- Auto.gathered %>%
+  filter(!(variable %in% c("acceleration", "displacement", "horsepower", "weight")))
+
+ggplot(Auto.gathered, mapping = aes(x = value, y = mpg, color = variable, group = value)) +
+  facet_wrap(~variable, scales = "free") +
+  geom_point(data = Auto.gathered.continuous, size = 0.5) +
+  geom_boxplot(data = Auto.gathered.discrete) +
+  theme(axis.text = element_blank())
+```
+
+\newpage
+
+(f) Suppose that we wish to predict gas mileage (`mpg`) on the basis of the other variables. Do your plots suggest that any of the other variables might be useful in predicting mpg? Justify your answer.
+
+`Acceleration` seems useless in predicting `mpg`. Three qualitative variables are potentially useful since the boxplots between different groups show a significant difference. `Weight` is negatively correlated with `mpg` while `displacement` and `horsepower` do not have strictly linear relationship with `mpg`. But we could use hierarchical model with these two predictors.
+
+```{r}
+model <- lm(mpg ~ .-acceleration, data = Auto)
+summary(model)
+```
+
+\newpage
+
+## Problem 10
+
+This exercise involves the `Boston` housing data set.
+
+(a) Load and read about the data set `Boston`.
+
+```{r}
+data(Boston)
+```
+
+With `help(Boston)`, we can get the description of the data set:
+
+`crim`: per capita crime rate by town.
+
+`zn`: proportion of residential land zoned for lots over 25,000 sq.ft.
+
+`indus`: proportion of non-retail business acres per town.
+
+`chas`: Charles River dummy variable (= 1 if tract bounds river; 0 otherwise).
+
+`nox`: nitrogen oxides concentration (parts per 10 million).
+
+`rm`: average number of rooms per dwelling.
+
+`age`: proportion of owner-occupied units built prior to 1940.
+
+`dis`: weighted mean of distances to five Boston employment centres.
+
+`rad`: index of accessibility to radial highways.
+
+`tax`: full-value property-tax rate per \$10,000.
+
+`ptratio`: pupil-teacher ratio by town.
+
+`black`: 1000(Bk - 0.63)^2 where Bk is the proportion of blacks by town.
+
+`lstat`: lower status of the population (percent).
+
+`medv`: median value of owner-occupied homes in \$1000s.
+
+(b) Make some pairwise scatterplots of the predictors (columns) in this data set. Describe your findings.
+
+```{r, message=FALSE}
+ggpairs(Boston, axisLabels = "none")
+```
+
+\newpage
+
+(c) Are any of the predictors associated with per capita crime rate? If so, explain the relationship.
+
+```{r}
+Boston.gathered <- Boston %>%
+  gather(key = "variable", value = "value", -crim)
+
+Boston.gathered.continuous <- Boston.gathered %>%
+  filter(!(variable %in% c("rad", "chas")))
+
+Boston.gathered.discrete <- Boston.gathered %>%
+  filter(variable %in% c("rad", "chas")) %>%
+  mutate(value = as.factor(value))
+
+ggplot(Boston.gathered.continuous, 
+       aes(x = value, y = crim, color = variable)) +
+  geom_point() +
+  facet_wrap(~variable, scales = "free") +
+  guides(color = "none")
+
+ggplot(Boston.gathered.discrete, 
+       aes(x = value, y = crim, color = variable)) +
+  geom_boxplot() +
+  facet_wrap(~variable, scales = "free") +
+  guides(color = "none")
+```
+
+(d) Do any of the suburbs of Boston appear to have particularly high crime rates? Tax rates? Pupil-teacher ratios? Comment on the range of each predictor.
+
+```{r}
+Boston %>%
+  gather(key = "variable", value = "value") %>%
+  filter(variable %in% c("crim", "tax", "ptratio")) %>%
+  group_by(variable) %>%
+  summarise(max = max(value),
+            range = max(value) - min(value))
+```
+
+(e) How many of the suburbs in this data set bound the Charles river?
+
+```{r}
+summary(as.factor(Boston$chas))
+```
+
+
+(f) What is the median pupil-teacher ratio among the towns in this data set?
+
+```{r}
+median(Boston$ptratio)
+```
+
+
+(g) Which suburb of Boston has lowest median value of owner-occupied homes? What are the values of the other predictors for that suburb, and how do those values compare to the overall ranges for those predictors? Comment on your findings.
+
+```{r}
+Boston[Boston["medv"] == min(Boston["medv"]),]
+```
+
+(h) In this data set, how many of the suburbs average more than seven rooms per dwelling? More than eight rooms per dwelling? Comment on the suburbs that average more than eight rooms per dwelling.
+
+```{r}
+nrow(Boston[Boston["rm"] > 7,])
+nrow(Boston[Boston["rm"] > 8,])
+```

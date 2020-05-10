@@ -1,0 +1,247 @@
+---
+title: "Chapter 4 Classification"
+author: "Jishen Yin"
+date: "2020/5/6"
+output: pdf_document
+---
+
+```{r setup, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ISLR)
+library(MASS)
+library(class)
+library(tidyverse)
+library(GGally)
+library(gridExtra)
+library(grid)
+```
+
+## Problem 10
+
+This question should be answered using `Weekly` data set, which is part of the `ISLR` package.
+
+```{r}
+data(Weekly)
+```
+
+
+(a) Produce some numerical and graphical summaries of the `Weekly` data.
+
+```{r}
+summary(Weekly)
+```
+
+(b) Use the full dataset to perform a logistic regression with `Direction` as the response and the five lag variables plus `Volume` as predictors. Use the summary function to print the results. Do any of the predictors appear to be statistically significant? If so, which one?
+
+```{r}
+lr <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Weekly, family = binomial)
+summary(lr)
+```
+
+(c) compute the confusion matrix and overall fraction of correct predictions.
+
+```{r}
+pred_prob <- predict(lr, Weekly, type = "response")
+thres <- seq(0, 1, 0.01)
+TP <- rep(0, 101)
+FP <- rep(0, 101)
+N <- sum(Weekly$Direction == "Down")
+P <- sum(Weekly$Direction == "Up")
+for(i in 1:101){
+  pred <- pred_prob > thres[i]
+  TP[i] <- sum(Weekly$Direction == "Up" & pred)/P
+  FP[i] <- sum(Weekly$Direction == "Down" & pred)/N
+}
+```
+
+```{r}
+plot(FP, TP, type = "l", xlim = c(0, 1), ylim = c(0, 1))
+abline(a = 0, b = 1)
+```
+
+```{r}
+# Choose the best threshold
+diff <- TP - FP
+thre <- thres[diff == max(diff)]
+pred <- ifelse(pred_prob > thre, "Up", "Down")
+
+table(Weekly$Direction, pred)
+```
+
+(d) Now fit the logistic regression model using a training data period from 1990 to 2008, which `Lag2` as the only predictor. Compute the confusion matrix and the overall fraction of correct predictions for the held out data.
+
+```{r}
+Weekly_train <- Weekly[Weekly$Year <= 2008, ]
+Weekly_test <- Weekly[Weekly$Year > 2008, ]
+
+lr_new <- glm(Direction ~ Lag2, data = Weekly_train, family = binomial)
+summary(lr_new)
+```
+
+```{r}
+pred_prob <- predict(lr_new, Weekly_train, type = "response")
+thres <- seq(0, 1, 0.01)
+TP <- rep(0, 101)
+FP <- rep(0, 101)
+N <- sum(Weekly_train$Direction == "Down")
+P <- sum(Weekly_train$Direction == "Up")
+for(i in 1:101){
+  pred <- pred_prob > thres[i]
+  TP[i] <- sum(Weekly_train$Direction == "Up" & pred)/P
+  FP[i] <- sum(Weekly_train$Direction == "Down" & pred)/N
+}
+```
+
+```{r}
+plot(FP, TP, type = "l", xlim = c(0, 1), ylim = c(0, 1))
+abline(a = 0, b = 1)
+```
+
+```{r}
+# Choose the best threshold
+diff <- TP - FP
+thre <- thres[diff == max(diff)]
+pred <- ifelse(predict(lr_new, Weekly_test) > thre, "Up", "Down")
+
+table(Weekly_test$Direction, pred)
+```
+
+(e) Repeat (d) using LDA
+
+```{r}
+lda.fit <- lda(Direction ~ Lag2, data = Weekly_train)
+lda.pred <- predict(lda.fit, Weekly_test)
+lda.class <- lda.pred$class
+table(lda.class, Weekly_test$Direction)
+```
+
+(f) Repeat (d) using QDA
+
+```{r}
+qda.fit <- qda(Direction ~ Lag2, data = Weekly_train)
+qda.pred <- predict(qda.fit, Weekly_test)
+qda.class <- qda.pred$class
+table(qda.class, Weekly_test$Direction)
+```
+
+(g) Repeat (d) with KNN
+
+```{r}
+knn.pred <- knn(data.frame(Lag2 = Weekly_train$Lag2),
+                data.frame(Lag2 = Weekly_test$Lag2), Weekly_train$Direction, k = 4)
+table(knn.pred, Weekly_test$Direction)
+```
+
+## Problem 11
+
+In this peoblem, you will develop a model to predict whether a given car gets high or low gas mileage based on the `Auto` data set.
+
+(a) Create a binary variable, `mpg01`, that contains a 1 if `mpg` contains a value above its median, and a 0 if `mpg` contains a value below its median.
+
+```{r}
+data(Auto)
+med <- median(Auto$mpg)
+Auto <- Auto %>%
+  mutate(mpg01 = ifelse(mpg > med, 1, 0)) %>%
+  select(-mpg, -name)
+Auto$mpg01 = as.factor(Auto$mpg01)
+Auto$origin = as.factor(Auto$origin)
+```
+
+(b) Explore the data graphically in order to investigate the association between `mpg01` and the other features. Which of the other features. Which of the other features seem most likely to be useful in predicting `mpg01`?
+
+```{r}
+table(Auto$origin, Auto$mpg01)
+```
+
+```{r}
+g1 <- ggplot(data = Auto) +
+  geom_boxplot(aes(x = mpg01, y = cylinders, group = mpg01))
+g2 <- ggplot(data = Auto) +
+  geom_boxplot(aes(x = mpg01, y = displacement, group = mpg01))
+g3 <- ggplot(data = Auto) +
+  geom_boxplot(aes(x = mpg01, y = horsepower, group = mpg01))
+g4 <- ggplot(data = Auto) +
+  geom_boxplot(aes(x = mpg01, y = weight, group = mpg01))
+g5 <- ggplot(data = Auto) +
+  geom_boxplot(aes(x = mpg01, y = acceleration, group = mpg01))
+g6 <- ggplot(data = Auto) +
+  geom_boxplot(aes(x = mpg01, y = year, group = mpg01))
+grid.arrange(g1, g2, g3, g4, g5, g6, nrow = 3)
+```
+
+(c) Split the data into a training set and a test set
+
+```{r}
+Auto_train <- Auto[1:300, ]
+Auto_test <- Auto[301:392, ]
+```
+
+(d) Perform LDA on the training data in order to predict `mpg01` using the variables that seemed most assciated with `mpg01`.
+
+```{r}
+lda.fit <- lda(mpg01 ~ .-year, data = Auto_train)
+lda.pred <- predict(lda.fit, Auto_test)
+lda.class <- lda.pred$class
+mean(lda.class == Auto_test$mpg01)
+```
+
+(e) Perform QDA on the training data in order to predict `mpg01` using the variables that seemed most assciated with `mpg01`.
+
+```{r}
+qda.fit <- qda(mpg01 ~ .-year, data = Auto_train)
+qda.pred <- predict(qda.fit, Auto_test)
+qda.class <- qda.pred$class
+mean(qda.class == Auto_test$mpg01)
+```
+
+(e) Perform Logistic Regression on the training data in order to predict `mpg01` using the variables that seemed most assciated with `mpg01`.
+
+```{r}
+lr.fit <- glm(mpg01 ~ .-year, data = Auto_train, family = binomial)
+
+pred_prob <- predict(lr.fit, Auto_train, type = "response")
+thres <- seq(0, 1, 0.01)
+TP <- rep(0, 101)
+FP <- rep(0, 101)
+N <- sum(Auto_train$mpg01 == 0)
+P <- sum(Auto_train$mpg01 == 1)
+for(i in 1:101){
+  pred <- pred_prob > thres[i]
+  TP[i] <- sum(Auto_train$mpg01 == 1 & pred)/P
+  FP[i] <- sum(Auto_train$mpg01 == 0 & pred)/N
+}
+```
+
+```{r}
+plot(FP, TP, type = "l", xlim = c(0, 1), ylim = c(0, 1))
+abline(a = 0, b = 1)
+```
+
+```{r}
+# Choose the best threshold
+diff <- TP - FP
+thre <- thres[diff == max(diff)][1]
+pred <- ifelse(predict(lr.fit, Auto_test) > thre, 1, 0)
+
+mean(Auto_test$mpg01 == pred)
+```
+
+(g) perform KNN on the training data, with several values of K.
+
+```{r}
+X_train <- Auto_train[c(1:5, 7)]
+X_test <- Auto_test[c(1:5, 7)]
+y_train <- Auto_train$mpg01
+y_test <- Auto_test$mpg01
+
+acc <- sapply(1:10, function(x){
+  knn.pred <- knn(X_train, X_test, y_train, k = x)
+  return(mean(knn.pred == y_test))
+})
+```
+
+```{r}
+plot(acc, type = "l")
+```
+
