@@ -1,0 +1,118 @@
+---
+title: "Chapter 6 Linear Model Selection and Regularization"
+author: "Jishen Yin"
+date: "2020/5/10"
+output: pdf_document
+---
+
+```{r setup, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ISLR)
+library(MASS)
+library(leaps)
+library(glmnet)
+library(pls)
+library(tidyverse)
+```
+
+## Problem 9
+
+In this exercise, we will predict the number of applications received using the other variables in the `College` data set.
+
+(a) Split the data set into a training set and a test set.
+
+```{r}
+data(College)
+set.seed(1)
+train <- sample(1:nrow(College), 500)
+College_train <- College[train,]
+College_val <- College[-train,]
+```
+
+(b) Fit a linear model using least square.
+
+```{r}
+RMSE <- function(y_pred, y){
+  return(sqrt(mean((y_pred-y)^2)))
+}
+```
+
+
+```{r}
+ols <- lm(Apps ~ ., data = College_train)
+RMSE(predict(ols, College_val), College_val$Apps)
+```
+
+(c) Fit a ridge regression model.
+
+```{r}
+x <- model.matrix(Apps~., data = College)[,-1]
+y <- College$Apps
+
+grid <- 10 ^ seq(5, -5, length = 100)
+ridge <- glmnet(x[train,], y[train], alpha = 0, lambda = grid, thresh = 1e-12)
+```
+
+```{r}
+set.seed(1)
+cv.out <- cv.glmnet(x[train,], y[train], alpha = 0)
+plot(cv.out)
+```
+
+```{r}
+bestlam <- cv.out$lambda.min
+bestlam
+```
+
+```{r}
+ridge.pred <- predict.glmnet(ridge, x[-train,], s = bestlam)
+RMSE(ridge.pred, College_val$Apps)
+```
+
+(d) Fit a lasso model.
+
+```{r}
+lasso <- glmnet(x[train,], y[train], alpha = 1, lambda = grid, thresh = 1e-12)
+cv.out <- cv.glmnet(x[train,], y[train], alpha = 1)
+plot(cv.out)
+```
+
+```{r}
+bestlam <- cv.out$lambda.min
+bestlam
+```
+
+```{r}
+lasso.pred <- predict.glmnet(lasso, x[-train,], s = bestlam)
+RMSE(lasso.pred, College_val$Apps)
+```
+
+(e) Fit a PCR model.
+
+```{r}
+set.seed(5)
+pcr.fit <- pcr(Apps~., data = College_train, scale = TRUE, validation = "CV")
+validationplot(pcr.fit, val.type = "MSEP")
+```
+
+```{r}
+pcr.pred <- predict(pcr.fit, x[-train,], ncomp = 16)
+RMSE(pcr.pred, College_val$Apps)
+```
+
+(f) Fit a PLS model.
+
+```{r}
+pls.fit <- plsr(Apps~., data = College_train, scale = TRUE, validation = "CV")
+validationplot(pls.fit, val.type = "MSEP")
+```
+
+```{r}
+summary(pls.fit)
+```
+
+```{r}
+pls.pred <- predict(pls.fit, x[-train,], ncomp = 14)
+RMSE(pls.pred, College_val$Apps)
+```
+
